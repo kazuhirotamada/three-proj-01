@@ -1,21 +1,19 @@
-import * as THREE from 'three';
-import { createNoise3D } from 'simplex-noise';
+import * as THREE from "three";
+import { createNoise3D } from "simplex-noise";
 
 export function createSketchFlow({ scene, gui }) {
   const params = {
     count: 20000,
     spread: 20,
-    size: 0.03,
-    speed: 0.01,
-    noiseScale: 0.08,
-    strength: 0.15,
-    color: '#66ccff',
-    colors: [
-        '#66ccff',
-        '#88aaff',
-        '#aaddff',
-        '#ffffff',
-    ]
+    size: 0.045,
+    speed: 0.12,
+    noiseScale: 0.035,
+    strength: 0.08,
+    drift: 0.003,
+    respawnChance: 0.002,
+    opacity: 0.35,
+    saturation: 0.55,
+    lightness: 0.65,
   };
 
   const noise3D = createNoise3D();
@@ -36,104 +34,131 @@ export function createSketchFlow({ scene, gui }) {
   }
 
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 
   const colors = new Float32Array(params.count * 3);
 
-    for (let i = 0; i < params.count; i++) {
-        const i3 = i * 3;
+  for (let i = 0; i < params.count; i++) {
+    const i3 = i * 3;
 
-        const x = positions[i3 + 0];
+    const x = positions[i3 + 0];
+    const color = new THREE.Color();
 
-        const color = new THREE.Color();
+    color.setHSL(x / params.spread + 0.5, params.saturation, params.lightness);
 
-        color.setHSL(
-            (x / params.spread) + 0.5,
-            0.8,
-            0.6
-        );
+    colors[i3 + 0] = color.r;
+    colors[i3 + 1] = color.g;
+    colors[i3 + 2] = color.b;
+  }
 
-        colors[i3 + 0] = color.r;
-        colors[i3 + 1] = color.g;
-        colors[i3 + 2] = color.b;
-    }
-
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-
-  const randomColor = params.colors[Math.floor(Math.random() * params.colors.length)];
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
   const material = new THREE.PointsMaterial({
     size: params.size,
     vertexColors: true,
-    // color: randomColor,
     transparent: true,
-    opacity: 0.8,
+    opacity: params.opacity,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
   });
 
   const points = new THREE.Points(geometry, material);
   scene.add(points);
 
   if (gui) {
-    const folder = gui.addFolder('flow');
-    folder.add(params, 'count').min(1000).max(100000).step(1000);
-    folder.add(params, 'size').min(0.001).max(0.2).step(0.001);
-    folder.add(params, 'speed').min(0.001).max(0.05).step(0.001);
-    folder.add(params, 'noiseScale').min(0.001).max(0.3).step(0.001);
-    folder.add(params, 'strength').min(0.01).max(1.0).step(0.01);
+    const folder = gui.addFolder("flow");
+    folder.add(params, "count").min(1000).max(100000).step(1000);
+    folder.add(params, "size").min(0.001).max(0.2).step(0.001);
+    folder.add(params, "speed").min(0.01).max(0.5).step(0.001);
+    folder.add(params, "noiseScale").min(0.005).max(0.2).step(0.001);
+    folder.add(params, "strength").min(0.001).max(0.3).step(0.001);
+    folder.add(params, "drift").min(0.0).max(0.02).step(0.0005);
+    folder.add(params, "respawnChance").min(0.0).max(0.01).step(0.0001);
+    folder
+      .add(params, "opacity")
+      .min(0.05)
+      .max(1.0)
+      .step(0.01)
+      .onChange((v) => {
+        material.opacity = v;
+      });
+    folder.add(params, "saturation").min(0.0).max(1.0).step(0.01);
+    folder.add(params, "lightness").min(0.0).max(1.0).step(0.01);
     folder.open();
   }
 
   return {
     update: (time) => {
-  const positionAttribute = geometry.attributes.position;
-  const colorAttribute = geometry.attributes.color;
+      const positionAttribute = geometry.attributes.position;
+      const colorAttribute = geometry.attributes.color;
 
-  const positionsArray = positionAttribute.array;
-  const colorsArray = colorAttribute.array;
+      const positionsArray = positionAttribute.array;
+      const colorsArray = colorAttribute.array;
 
-  const tempColor = new THREE.Color();
+      const tempColor = new THREE.Color();
+      const limit = params.spread * 0.6;
 
-  for (let i = 0; i < params.count; i += 1) {
-    const i3 = i * 3;
+      for (let i = 0; i < params.count; i += 1) {
+        const i3 = i * 3;
 
-    const x = positionsArray[i3 + 0];
-    const y = positionsArray[i3 + 1];
-    const z = positionsArray[i3 + 2];
+        let x = positionsArray[i3 + 0];
+        let y = positionsArray[i3 + 1];
+        let z = positionsArray[i3 + 2];
 
-    const angle = noise3D(
-      x * params.noiseScale,
-      y * params.noiseScale,
-      time * params.speed
-    ) * Math.PI * 2;
+        const angle =
+          noise3D(
+            x * params.noiseScale,
+            y * params.noiseScale,
+            time * params.speed,
+          ) *
+          Math.PI *
+          2;
 
-    positionsArray[i3 + 0] += Math.cos(angle) * params.strength * 0.02;
-    positionsArray[i3 + 1] += Math.sin(angle) * params.strength * 0.02;
+        const angleZ =
+          noise3D(
+            y * params.noiseScale,
+            z * params.noiseScale,
+            time * params.speed,
+          ) *
+          Math.PI *
+          2;
 
-    const limit = params.spread * 0.6;
+        positionsArray[i3 + 0] += Math.cos(angle) * params.strength;
+        positionsArray[i3 + 1] += Math.sin(angle) * params.strength;
+        positionsArray[i3 + 2] += Math.sin(angleZ) * params.strength * 0.4;
 
-    if (positionsArray[i3 + 0] > limit) positionsArray[i3 + 0] = -limit;
-    if (positionsArray[i3 + 0] < -limit) positionsArray[i3 + 0] = limit;
-    if (positionsArray[i3 + 1] > limit) positionsArray[i3 + 1] = -limit;
-    if (positionsArray[i3 + 1] < -limit) positionsArray[i3 + 1] = limit;
-    if (positionsArray[i3 + 2] > limit) positionsArray[i3 + 2] = -limit;
-    if (positionsArray[i3 + 2] < -limit) positionsArray[i3 + 2] = limit;
+        positionsArray[i3 + 0] += (Math.random() - 0.5) * params.drift;
+        positionsArray[i3 + 1] += (Math.random() - 0.5) * params.drift;
+        positionsArray[i3 + 2] += (Math.random() - 0.5) * params.drift * 0.5;
 
-    const hue =
-      ((positionsArray[i3 + 0] / params.spread) + 0.5 + time * 0.05) % 1;
+        if (Math.random() < params.respawnChance) {
+          positionsArray[i3 + 0] = (Math.random() - 0.5) * params.spread;
+          positionsArray[i3 + 1] = (Math.random() - 0.5) * params.spread;
+          positionsArray[i3 + 2] = (Math.random() - 0.5) * params.spread;
+        }
 
-    tempColor.setHSL(hue, 0.8, 0.6);
+        if (positionsArray[i3 + 0] > limit) positionsArray[i3 + 0] = -limit;
+        if (positionsArray[i3 + 0] < -limit) positionsArray[i3 + 0] = limit;
+        if (positionsArray[i3 + 1] > limit) positionsArray[i3 + 1] = -limit;
+        if (positionsArray[i3 + 1] < -limit) positionsArray[i3 + 1] = limit;
+        if (positionsArray[i3 + 2] > limit) positionsArray[i3 + 2] = -limit;
+        if (positionsArray[i3 + 2] < -limit) positionsArray[i3 + 2] = limit;
 
-    colorsArray[i3 + 0] = tempColor.r;
-    colorsArray[i3 + 1] = tempColor.g;
-    colorsArray[i3 + 2] = tempColor.b;
-  }
+        x = positionsArray[i3 + 0];
+        y = positionsArray[i3 + 1];
+        z = positionsArray[i3 + 2];
 
-  positionAttribute.needsUpdate = true;
-  colorAttribute.needsUpdate = true;
-},
+        const hue = (((x + y * 0.5) / params.spread) * 0.5 + 0.5) % 1;
+
+        tempColor.setHSL(hue, params.saturation, params.lightness);
+
+        colorsArray[i3 + 0] = tempColor.r;
+        colorsArray[i3 + 1] = tempColor.g;
+        colorsArray[i3 + 2] = tempColor.b;
+      }
+
+      positionAttribute.needsUpdate = true;
+      colorAttribute.needsUpdate = true;
+    },
     destroy: () => {
       geometry.dispose();
       material.dispose();
