@@ -1,0 +1,21 @@
+{
+  "name": "three-template-lab",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:debug": "vite --mode debug",
+    "build": "vite build",
+    "build:debug": "vite build --mode debug",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^8.0.1"
+  },
+  "dependencies": {
+    "lil-gui": "^0.21.0",
+    "stats.js": "^0.17.0",
+    "three": "^0.183.2"
+  }
+}
